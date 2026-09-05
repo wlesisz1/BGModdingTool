@@ -1,0 +1,121 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BGModdingTool.App.ViewModels"
+             xmlns:svc="using:BGModdingTool.Core.Services"
+             x:Class="BGModdingTool.App.Views.CatalogView"
+             x:DataType="vm:CatalogViewModel">
+  <Grid ColumnDefinitions="*,12,*" Margin="12">
+
+    <!-- catalog list -->
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBox Text="{Binding SearchText}" Watermark="🔎 search the LCC catalog (name, tp2, description)…"/>
+          <ComboBox Grid.Column="1" Width="120" Margin="6,0,0,0"
+                    ItemsSource="{Binding GameFilters}" SelectedItem="{Binding SelectedGameFilter}"/>
+          <ComboBox Grid.Column="2" Width="170" Margin="6,0,0,0"
+                    ItemsSource="{Binding CategoryFilters}" SelectedItem="{Binding SelectedCategoryFilter}"/>
+        </Grid>
+        <TextBlock Text="{Binding CountInfo}" FontSize="11" Opacity="0.7"/>
+      </StackPanel>
+      <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:CatalogItem">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="2">
+              <TextBlock Text="{Binding Mod.QualityEmoji}" VerticalAlignment="Center" Margin="0,0,6,0"
+                         ToolTip.Tip="LCC quality: 🟢 good · 🟡 caveats · 🟥 problematic/obsolete"/>
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="{Binding Mod.Name}" FontWeight="SemiBold"/>
+                <TextBlock FontSize="11" Opacity="0.7">
+                  <Run Text="{Binding Mod.CategoriesEnglish}"/> · <Run Text="{Binding Mod.Tp2}"/>
+                </TextBlock>
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding InLibraryMark}" FontSize="11" Foreground="Green"
+                         FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0"/>
+              <TextBlock Grid.Column="3" Text="{Binding Mod.Year}" FontSize="11" Opacity="0.6"
+                         VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <!-- details -->
+    <ScrollViewer Grid.Column="2">
+      <StackPanel Spacing="8" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding Selected.Mod.Name}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap"
+                     VerticalAlignment="Center"/>
+          <Button Content="🔗 LCC page" FontSize="11" Padding="6,2" Command="{Binding OpenLccPageCommand}"/>
+          <Button Content="🔍 Google" FontSize="11" Padding="6,2" Command="{Binding SearchWebCommand}"/>
+        </StackPanel>
+        <TextBlock Text="✔ Already in your library" Foreground="Green" FontWeight="SemiBold"
+                   IsVisible="{Binding IsInLibrary}"/>
+        <TextBlock Text="{Binding DetailsMeta}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap" FontSize="12" Opacity="0.9"/>
+        <ItemsControl ItemsSource="{Binding DescriptionLinks}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="svc:LccNoteRef">
+              <Button FontSize="11" Padding="6,1" Margin="0,1,4,1"
+                      Command="{Binding $parent[UserControl].((vm:CatalogViewModel)DataContext).OpenUrlCommand}"
+                      CommandParameter="{Binding Url}">
+                <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ItemsControl ItemsSource="{Binding Notes}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LccNoteItem">
+              <StackPanel Margin="0,1">
+                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" Foreground="DarkOrange"/>
+                <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="svc:LccNoteRef">
+                      <Button FontSize="11" Padding="6,1" Margin="0,1,4,1"
+                              Command="{Binding $parent[UserControl].((vm:CatalogViewModel)DataContext).OpenUrlCommand}"
+                              CommandParameter="{Binding Url}">
+                        <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Separator/>
+        <TextBlock Text="Links" FontWeight="Bold" FontSize="12"/>
+        <ItemsControl ItemsSource="{Binding Urls}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CatalogUrlItem">
+              <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,2">
+                <Button Content="⬇ Download" FontSize="11" Padding="8,2" Margin="0,0,6,0"
+                        IsVisible="{Binding IsDownloadable}"
+                        Command="{Binding $parent[UserControl].((vm:CatalogViewModel)DataContext).DownloadCommand}"
+                        CommandParameter="{Binding}"
+                        ToolTip.Tip="Downloads the latest release and imports it into your library (queued, non-blocking)"/>
+                <Button Grid.Column="1" Content="🌐 Open" FontSize="11" Padding="8,2" Margin="0,0,6,0"
+                        Command="{Binding $parent[UserControl].((vm:CatalogViewModel)DataContext).OpenUrlCommand}"
+                        CommandParameter="{Binding Url}"/>
+                <TextBlock Grid.Column="2" Text="{Binding Url}" FontSize="11" Opacity="0.7"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BGModdingTool.App.ViewModels"
+             xmlns:core="using:BGModdingTool.Core.Models"
+             x:Class="BGModdingTool.App.Views.InstallView"
+             x:DataType="vm:InstallViewModel">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Spacing="8">
+      <Grid ColumnDefinitions="Auto,240,24,Auto,240" >
+        <TextBlock Text="Instance:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <ComboBox Grid.Column="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:GameInstance"><TextBlock Text="{Binding Name}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Grid.Column="3" Text="Build:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <ComboBox Grid.Column="4" ItemsSource="{Binding Builds}" SelectedItem="{Binding SelectedBuild}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:BuildDefinition"><TextBlock Text="{Binding Name}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </Grid>
+      <TextBlock Text="{Binding InstanceStateText}" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                 IsVisible="{Binding InstanceStateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <TextBlock Text="weidu.exe:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <TextBox Grid.Column="1" Text="{Binding WeiduPath}"
+                 Watermark="(auto — downloaded into tools, or a setup-*.exe from the mod library)"/>
+        <Button Grid.Column="2" Content="…" Command="{Binding PickWeiduCommand}" Margin="4,0,0,0"/>
+        <Button Grid.Column="3" Content="⬇ Download WeiDU (GitHub)" Command="{Binding DownloadWeiduCommand}"
+                IsEnabled="{Binding !IsInstalling}" Margin="4,0,0,0"/>
+      </Grid>
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Game language:" VerticalAlignment="Center"/>
+        <ComboBox Width="110" ItemsSource="{Binding GameLanguages}" SelectedItem="{Binding SelectedGameLanguage}"
+                  ToolTip.Tip="Language directory of the game text (WeiDU --use-lang). Prevents the interactive language prompt on first install."/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="▶ Install build" Classes="accent" Command="{Binding InstallCommand}"
+                IsEnabled="{Binding !IsInstalling}"/>
+        <Button Content="⏹ Cancel" Command="{Binding CancelInstallCommand}" IsEnabled="{Binding IsInstalling}"/>
+        <Button Content="↩ Roll back to the pre-install state" Command="{Binding RollbackCommand}"
+                IsEnabled="{Binding CanRollback}"/>
+        <Button Content="💾 Save log" Command="{Binding SaveLogCommand}"/>
+        <CheckBox Content="Continue on errors" IsChecked="{Binding ContinueOnFailure}"/>
+      </StackPanel>
+      <Separator Margin="0,4"/>
+    </StackPanel>
+
+    <!-- interactive answer bar for unexpected installer prompts -->
+    <Border DockPanel.Dock="Bottom" IsVisible="{Binding AwaitingInput}"
+            Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            CornerRadius="4" Padding="8" Margin="0,6,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <TextBlock Text="⌨ The installer is asking a question (see the end of the log):"
+                   VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+        <TextBox Grid.Column="1" Text="{Binding UserInputText}"
+                 FontFamily="Consolas,Cascadia Mono,monospace" FontSize="12"
+                 Watermark="type the answer (e.g. a number, Y/N, or a path)…">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding SendInputCommand}"/>
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Grid.Column="2" Content="↩ Send" Classes="accent" Margin="6,0,0,0"
+                Command="{Binding SendInputCommand}"/>
+        <Button Grid.Column="3" Content="⏹ Abort installer" Margin="4,0,0,0"
+                Command="{Binding AbortInputCommand}"
+                ToolTip.Tip="Kills the current installer process (the pre-install snapshot remains available)"/>
+      </Grid>
+    </Border>
+
+    <ListBox x:Name="LogList" ItemsSource="{Binding LogLines}" FontFamily="Consolas,Cascadia Mono,monospace" FontSize="12">
+      <ListBox.ItemsPanel>
+        <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+      </ListBox.ItemsPanel>
+    </ListBox>
+  </DockPanel>
+</UserControl>

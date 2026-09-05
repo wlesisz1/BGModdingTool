@@ -1,0 +1,385 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BGModdingTool.App.ViewModels"
+             xmlns:core="using:BGModdingTool.Core.Models"
+             xmlns:svc="using:BGModdingTool.Core.Services"
+             x:Class="BGModdingTool.App.Views.BuildsView"
+             x:DataType="vm:BuildsViewModel">
+  <UserControl.Styles>
+    <!-- Drop indicator while dragging a build entry: a line above/below the target row. -->
+    <Style Selector="ListBox#EntriesList ListBoxItem">
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+    </Style>
+    <Style Selector="ListBox#EntriesList ListBoxItem.drop-above">
+      <Setter Property="BorderThickness" Value="0,3,0,0"/>
+    </Style>
+    <Style Selector="ListBox#EntriesList ListBoxItem.drop-below">
+      <Setter Property="BorderThickness" Value="0,0,0,3"/>
+    </Style>
+    <Style Selector="ListBox#EntriesList ListBoxItem.drag-source">
+      <Setter Property="Opacity" Value="0.45"/>
+    </Style>
+  </UserControl.Styles>
+  <Grid ColumnDefinitions="300,Auto,*" Margin="12">
+
+    <!-- ============ Build list ============ -->
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+        <TextBox Watermark="New build name" Text="{Binding NewBuildName}"/>
+        <ComboBox ItemsSource="{Binding GameTypes}" SelectedItem="{Binding SelectedGameType}"
+                  HorizontalAlignment="Stretch"/>
+        <Button Content="➕ New build" Command="{Binding CreateBuildCommand}" HorizontalAlignment="Stretch"/>
+        <Button Content="📥 Import from weidu.log…" Command="{Binding ImportFromWeiduLogCommand}" HorizontalAlignment="Stretch"/>
+        <Button Content="🗑 Delete build" Command="{Binding DeleteBuildCommand}" HorizontalAlignment="Stretch"
+                IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+      </StackPanel>
+      <TextBlock DockPanel.Dock="Top" Text="Builds (configurations / packages)" FontWeight="Bold" Margin="0,0,0,6"/>
+      <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="core:BuildDefinition">
+            <StackPanel Margin="2">
+              <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+              <TextBlock FontSize="11" Opacity="0.7">
+                <Run Text="{Binding GameType}"/> · <Run Text="{Binding Entries.Count}"/> entries
+              </TextBlock>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <GridSplitter Grid.Column="1" Width="6" Background="Transparent"
+                  ResizeDirection="Columns"/>
+
+    <!-- ============ Editor ============ -->
+    <DockPanel Grid.Column="2" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+      <!-- toolbar -->
+      <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8" ItemSpacing="6" LineSpacing="6">
+        <ComboBox Width="220" ItemsSource="{Binding AvailableMods}" SelectedItem="{Binding ModToAdd}"
+                  PlaceholderText="mod from library…">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:ModPackage"><TextBlock Text="{Binding Metadata.Name}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <ComboBox Width="180" ItemsSource="{Binding ModTp2Variants}" SelectedItem="{Binding SelectedTp2Variant}"
+                  IsVisible="{Binding HasMultipleTp2}"
+                  ToolTip.Tip="This mod ships several installers (tp2) — pick which one to add"/>
+        <Button Content="➕ Add mod" Command="{Binding AddModEntryCommand}"/>
+        <ComboBox Width="170" ItemsSource="{Binding Items}" SelectedItem="{Binding BuildToInclude}"
+                  PlaceholderText="other build…">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:BuildDefinition"><TextBlock Text="{Binding Name}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="📦 Insert build" Command="{Binding AddIncludeCommand}"
+                ToolTip.Tip="Adds another build as a package — its entries are spliced in at this position during install"/>
+        <Button Content="⬆" Command="{Binding MoveEntryUpCommand}"/>
+        <Button Content="⬇" Command="{Binding MoveEntryDownCommand}"/>
+        <Button Content="➖" Command="{Binding RemoveEntryCommand}" ToolTip.Tip="Remove selected entry"/>
+        <Button Content="🔀 Auto-sort" Command="{Binding SortByMetadataCommand}"
+                ToolTip.Tip="Sorts by mod metadata, your order rules, LCC dependencies and category tiers (fixpacks → quests → NPCs → tweaks → tactics → UI)"/>
+        <Button Content="📑 Sort by list…" Command="{Binding SortByMasterListCommand}"/>
+        <Button Content="🧪 Check order" Command="{Binding CheckOrderCommand}"/>
+        <Button Content="📂 Rules…" Command="{Binding OpenOrderRulesCommand}"
+                ToolTip.Tip="Opens order-rules.json with your own 'mod X before/after Y' rules (independent of mod files)"/>
+        <ComboBox Width="230" ItemsSource="{Binding HistoryVersions}" SelectedItem="{Binding SelectedHistoryVersion}"
+                  PlaceholderText="🕘 version history…"
+                  ToolTip.Tip="Every save (including auto-save and generator runs) archives the previous version here">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="svc:BuildVersion">
+              <TextBlock><Run Text="{Binding SavedAt, StringFormat='{}{0:g}'}"/> · <Run Text="{Binding EntryCount}"/> entries</TextBlock>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="↺ Restore version" Command="{Binding RestoreVersionCommand}"
+                IsEnabled="{Binding SelectedHistoryVersion, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+        <Button Content="📄 Duplicate" Command="{Binding DuplicateBuildCommand}"/>
+        <Button Content="📁 Builds folder" Command="{Binding OpenBuildsFolderCommand}"
+                ToolTip.Tip="Builds are plain JSON files — copy and share them from here"/>
+        <Button Content="💾 Save" Classes="accent" Command="{Binding SaveBuildCommand}"/>
+        <Button Content="↶ Discard" Command="{Binding DiscardChangesCommand}" IsVisible="{Binding IsDirty}"
+                ToolTip.Tip="Reload the build from disk, dropping unsaved edits"/>
+        <TextBlock Text="● Unsaved changes" Foreground="DarkOrange" FontWeight="SemiBold"
+                   VerticalAlignment="Center" IsVisible="{Binding IsDirty}"/>
+        <CheckBox Content="Auto-save" IsChecked="{Binding AutoSave}" VerticalAlignment="Center"
+                  ToolTip.Tip="Saves the build automatically ~0.6 s after every change (components, language, order…). Switching builds or closing the app never loses edits either."/>
+      </WrapPanel>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+        <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <TextBox Grid.Column="1" Text="{Binding RenameText}"/>
+        <Button Grid.Column="2" Content="✏ Rename" Margin="6,0,0,0" Command="{Binding RenameBuildCommand}"
+                ToolTip.Tip="Renames the build and updates packages that include it"/>
+      </Grid>
+
+      <!-- entries | splitter | details: 50/50 by default, draggable -->
+      <Grid ColumnDefinitions="*,Auto,*">
+
+        <!-- entries + validation -->
+        <DockPanel Grid.Column="0">
+          <Border DockPanel.Dock="Bottom" CornerRadius="4" Padding="8" Margin="0,6,0,0"
+                  Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+            <StackPanel Spacing="2">
+              <TextBlock Text="✔ Order OK" Foreground="Green" FontWeight="SemiBold"
+                         IsVisible="{Binding ValidationOk}"/>
+              <ItemsControl ItemsSource="{Binding ValidationIssues}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="DarkOrange">
+                      <Run Text="⚠ "/><Run Text="{Binding}"/>
+                    </TextBlock>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding LimitsForecast}" TextWrapping="Wrap" FontSize="12" FontFamily="Consolas, monospace"
+                         Margin="0,4,0,0" Opacity="0.9"
+                         ToolTip.Tip="Engine hard limits forecast: measured numbers come from previous installs (limits-ledger.json), ≈ from a scan of the mod's code. The engine has 256 spell states; ids written above 255 are dead."
+                         IsVisible="{Binding LimitsForecast, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock.Styles>
+                  <Style Selector="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemBaseHighColor}"/>
+                  </Style>
+                </TextBlock.Styles>
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <TextBox DockPanel.Dock="Top" Text="{Binding EntryFilter}" Margin="0,0,0,6"
+                   Watermark="🔎 find in this build (name, tp2, category, or position number)…"/>
+
+          <ListBox x:Name="EntriesList" ItemsSource="{Binding VisibleEntries}" SelectedItem="{Binding SelectedEntry}"
+                   ToolTip.Tip="Drag rows to reorder · right-click for move/duplicate/remove">
+            <ListBox.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="⤒ Move to top" Command="{Binding MoveEntryToTopCommand}"/>
+                <MenuItem Header="⤓ Move to bottom" Command="{Binding MoveEntryToBottomCommand}"/>
+                <MenuItem Header="↕ Move to position…" Command="{Binding MoveEntryToPositionCommand}"/>
+                <Separator/>
+                <MenuItem Header="⬆ Move up" Command="{Binding MoveEntryUpCommand}"/>
+                <MenuItem Header="⬇ Move down" Command="{Binding MoveEntryDownCommand}"/>
+                <Separator/>
+                <MenuItem Header="⧉ Duplicate entry" Command="{Binding DuplicateEntryCommand}"/>
+                <MenuItem Header="➖ Remove" Command="{Binding RemoveEntryCommand}"/>
+              </ContextMenu>
+            </ListBox.ContextMenu>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:BuildEntryViewModel">
+                <StackPanel Margin="2">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Position, StringFormat='{}{0}.'}" FontWeight="Bold" Opacity="0.6"
+                               MinWidth="28" TextAlignment="Right"/>
+                    <TextBlock Text="{Binding ModDisplayName}" FontWeight="SemiBold"/>
+                    <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                            CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
+                            IsVisible="{Binding TierLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding TierLabel}" FontSize="10" Opacity="0.8"/>
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Tp2}" FontSize="11" Opacity="0.6" IsVisible="{Binding IsMod}"/>
+                  <TextBlock FontSize="11" Opacity="0.75" IsVisible="{Binding IsMod}">
+                    lang <Run Text="{Binding LanguageIndex}"/> · components: <Run Text="{Binding ComponentsText}"/>
+                  </TextBlock>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+
+        <GridSplitter Grid.Column="1" Width="8" Background="Transparent"
+                      ResizeDirection="Columns"/>
+
+        <!-- ============ details panel (right) ============ -->
+        <Border Grid.Column="2" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1" CornerRadius="4" Padding="10"
+                IsVisible="{Binding SelectedEntry, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <DockPanel>
+
+            <!-- recipe -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding HasRecipe}"
+                    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    CornerRadius="4" Padding="8" Margin="0,0,0,8">
+              <StackPanel Spacing="4">
+                <TextBlock FontWeight="Bold" TextWrapping="Wrap">
+                  <Run Text="🧭 "/><Run Text="{Binding RecipeTitle}"/>
+                </TextBlock>
+                <TextBlock Text="{Binding RecipeInstructions}" TextWrapping="Wrap" FontSize="12" Opacity="0.9"/>
+              </StackPanel>
+            </Border>
+
+            <!-- readme + external links of the selected mod -->
+            <WrapPanel DockPanel.Dock="Top" ItemSpacing="4" LineSpacing="4" Margin="0,0,0,8"
+                       IsVisible="{Binding SelectedEntry.IsMod}">
+              <Button Content="📖 Readme" FontSize="11" Padding="8,2" Command="{Binding OpenReadmeCommand}"
+                      IsVisible="{Binding HasReadme}" ToolTip.Tip="{Binding ReadmePath}"/>
+              <Button Content="🔍 Google" FontSize="11" Padding="8,2" Command="{Binding SearchWebCommand}"
+                      ToolTip.Tip="Search the web for this mod (name + 'baldur's gate mod')"/>
+              <ItemsControl ItemsSource="{Binding EntryLinks}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><WrapPanel ItemSpacing="4" LineSpacing="4"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:LccNoteRef">
+                    <Button FontSize="11" Padding="8,2"
+                            Command="{Binding $parent[UserControl].((vm:BuildsViewModel)DataContext).OpenUrlCommand}"
+                            CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Url}">
+                      <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+
+            <!-- LCC community info -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding HasLccInfo}"
+                    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    CornerRadius="4" Padding="8" Margin="0,0,0,8">
+              <StackPanel Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding LccTitle}" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"
+                             VerticalAlignment="Center"/>
+                  <Button Content="🔗 LCC page" FontSize="11" Padding="6,1"
+                          Command="{Binding OpenUrlCommand}" CommandParameter="{Binding LccPageUrl}"/>
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding LccNotes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LccNoteItem">
+                      <StackPanel Margin="0,1">
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="11" Opacity="0.85"/>
+                        <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="svc:LccNoteRef">
+                              <Button FontSize="11" Padding="6,1" Margin="0,1,4,1"
+                                      Command="{Binding $parent[UserControl].((vm:BuildsViewModel)DataContext).OpenUrlCommand}"
+                                      CommandParameter="{Binding Url}">
+                                <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+                              </Button>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- structured: source game path -->
+            <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8"
+                        IsVisible="{Binding RecipeNeedsSourcePath}">
+              <TextBlock Text="Source game (required by this mod):" FontWeight="SemiBold" FontSize="12"/>
+              <Grid ColumnDefinitions="*,Auto">
+                <ComboBox ItemsSource="{Binding AvailableInstances}" SelectedItem="{Binding SourceInstance}"
+                          PlaceholderText="pick an instance…" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:GameInstance">
+                      <TextBlock><Run Text="{Binding Name}"/> (<Run Text="{Binding GameType}"/>)</TextBlock>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Grid.Column="1" Content="📁" Margin="4,0,0,0" Command="{Binding PickSourceFolderCommand}"
+                        ToolTip.Tip="Or point to any game directory on disk"/>
+              </Grid>
+            </StackPanel>
+
+            <!-- structured: installer questions -->
+            <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding StdinQuestions}" Margin="0,0,0,8">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StdinQuestionViewModel">
+                  <StackPanel Spacing="2" Margin="0,0,0,4">
+                    <TextBlock Text="{Binding Text}" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"/>
+                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}"
+                              HorizontalAlignment="Stretch">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="svc:StdinOption"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- language -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6"
+                        IsVisible="{Binding SelectedEntry.IsMod}">
+              <TextBlock Text="Language:" VerticalAlignment="Center" FontSize="12"/>
+              <ComboBox Width="200" ItemsSource="{Binding EntryLanguages}"
+                        SelectedItem="{Binding SelectedEntryLanguage}" PlaceholderText="language…"/>
+              <ProgressBar IsIndeterminate="True" Width="60" IsVisible="{Binding IsLoadingComponents}"/>
+            </StackPanel>
+
+            <!-- advanced (raw) -->
+            <Expander DockPanel.Dock="Bottom" Header="Advanced" Margin="0,6,0,0" FontSize="12"
+                      IsVisible="{Binding SelectedEntry.IsMod}">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Component numbers:" FontSize="11" Opacity="0.8"/>
+                <TextBox Text="{Binding SelectedEntry.ComponentsText}"
+                         FontFamily="Consolas,Cascadia Mono,monospace" FontSize="12"
+                         Watermark="e.g. 0 1000 2000"/>
+                <TextBlock Text="Extra WeiDU arguments (composed automatically by the fields above):" FontSize="11" Opacity="0.8"/>
+                <TextBox Text="{Binding SelectedEntry.ExtraArgsText}"
+                         FontFamily="Consolas,Cascadia Mono,monospace" FontSize="12"/>
+                <TextBlock Text="Installer answers (stdin, one per line):" FontSize="11" Opacity="0.8"/>
+                <TextBox Text="{Binding SelectedEntry.StdinText}" AcceptsReturn="True" MaxHeight="52"
+                         FontFamily="Consolas,Cascadia Mono,monospace" FontSize="12"/>
+              </StackPanel>
+            </Expander>
+
+            <!-- components -->
+            <DockPanel IsVisible="{Binding SelectedEntry.IsMod}">
+              <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
+                <TextBox Text="{Binding ComponentFilter}" Watermark="🔎 filter components…" FontSize="12"/>
+                <Button Grid.Column="1" Content="☑" Margin="4,0,0,0" Command="{Binding SelectVisibleComponentsCommand}"
+                        ToolTip.Tip="Select visible components"/>
+                <Button Grid.Column="2" Content="☐" Margin="2,0,0,0" Command="{Binding DeselectVisibleComponentsCommand}"
+                        ToolTip.Tip="Deselect visible components"/>
+              </Grid>
+              <TextBlock DockPanel.Dock="Top" Text="{Binding ComponentsInfo}" FontSize="11" Opacity="0.8"
+                         TextWrapping="Wrap" Margin="0,0,0,4"/>
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding EntryComponents}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ComponentChoice">
+                      <CheckBox IsChecked="{Binding IsSelected}" Margin="0,1"
+                                ToolTip.Tip="{Binding GroupTooltip}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <TextBlock Text="◉" FontSize="10" Opacity="0.6" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsGrouped}"/>
+                          <TextBlock Text="⚠" FontSize="11" Foreground="DarkOrange" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsInteractiveOnly}"/>
+                          <StackPanel Spacing="2">
+                            <TextBlock TextWrapping="Wrap" FontSize="12">
+                              <Run Text="{Binding Number}" FontWeight="SemiBold"/> — <Run Text="{Binding Label}"/>
+                            </TextBlock>
+                            <!-- portrait choices: show what each option actually looks like -->
+                            <ItemsControl ItemsSource="{Binding PreviewImages}" IsVisible="{Binding HasPreviewImages}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4"/></ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <Border CornerRadius="3" ClipToBounds="True"
+                                          BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
+                                    <Image Source="{Binding}" Height="96" Stretch="Uniform"/>
+                                  </Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </StackPanel>
+                      </CheckBox>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </DockPanel>
+  </Grid>
+</UserControl>

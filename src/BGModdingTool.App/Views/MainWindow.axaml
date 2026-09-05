@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:BGModdingTool.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+        x:Class="BGModdingTool.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Width="1100" Height="720"
+        Title="BG Modding Tool">
+
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Padding="10,4"
+            Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="📂 Logs" FontSize="11" Padding="8,2"
+                Command="{Binding OpenLogsCommand}"
+                ToolTip.Tip="Opens the logs folder: app-DATE.log (all statuses and errors) and install-TIMESTAMP.log (WeiDU output of every install)"/>
+        <TextBlock Text="{Binding Status}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      </DockPanel>
+    </Border>
+
+    <TabControl>
+      <TabItem Header="🎮 Instances">
+        <ContentControl Content="{Binding Instances}"/>
+      </TabItem>
+      <TabItem Header="📚 Mods">
+        <ContentControl Content="{Binding Mods}"/>
+      </TabItem>
+      <TabItem Header="🌐 Catalog">
+        <ContentControl Content="{Binding Catalog}"/>
+      </TabItem>
+      <TabItem Header="🧩 Builds">
+        <ContentControl Content="{Binding Builds}"/>
+      </TabItem>
+      <TabItem Header="🎨 Assets">
+        <ContentControl Content="{Binding Assets}"/>
+      </TabItem>
+      <TabItem Header="⚙ Install">
+        <ContentControl Content="{Binding Install}"/>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

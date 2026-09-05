@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BGModdingTool.App.ViewModels"
+             xmlns:core="using:BGModdingTool.Core.Models"
+             xmlns:svc="using:BGModdingTool.Core.Services"
+             x:Class="BGModdingTool.App.Views.ModsView"
+             x:DataType="vm:ModsViewModel">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="📦 Import mod archives…" Command="{Binding ImportArchivesCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <Button Content="📁 Import folder…" Command="{Binding ImportFolderCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <Button Content="📁 Open folder" Command="{Binding OpenModFolderCommand}"
+                IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+        <Button Content="📖 Readme" Command="{Binding OpenReadmeCommand}" IsVisible="{Binding HasReadme}"
+                ToolTip.Tip="{Binding ReadmePath}"/>
+        <Button Content="🔍 Google" Command="{Binding SearchWebCommand}"
+                IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
+                ToolTip.Tip="Search the web for this mod (name + 'baldur's gate mod')"/>
+        <Button Content="🗑 Remove from library" Command="{Binding DeleteCommand}"
+                IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+        <Button Content="🌐 Update LCC database" Command="{Binding DownloadLccCommand}"
+                ToolTip.Tip="Fetches a fresh copy of the La Couronne de Cuivre community database (~2100 mods: game compatibility, quality, warnings, conflicts)"/>
+        <TextBox Width="220" Text="{Binding SearchText}" Watermark="🔎 search (name, folder, author)…"/>
+      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Text="{Binding DownloadUrl}"
+                 Watermark="Mod link: GitHub repo (e.g. https://github.com/Gibberlings3/...), release, or a direct archive link"/>
+        <Button Grid.Column="1" Content="⬇ Add to queue" Margin="6,0,0,0"
+                Command="{Binding DownloadFromUrlCommand}"/>
+      </Grid>
+
+      <!-- background download queue -->
+      <Border IsVisible="{Binding DownloadQueue.Count}"
+              Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+              CornerRadius="4" Padding="8">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Download queue" FontWeight="SemiBold" FontSize="12"/>
+          <ItemsControl ItemsSource="{Binding DownloadQueue}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DownloadJob">
+                <Grid ColumnDefinitions="*,2*,Auto" Margin="0,1">
+                  <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="12" Opacity="0.8"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0"/>
+                  <Button Grid.Column="2" Content="✖" FontSize="11" Padding="6,1"
+                          Command="{Binding $parent[ItemsControl].((vm:ModsViewModel)DataContext).DismissJobCommand}"
+                          CommandParameter="{Binding}"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,12,*">
+      <ListBox Grid.Column="0" ItemsSource="{Binding FilteredItems}" SelectedItem="{Binding Selected}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="core:ModPackage">
+            <StackPanel Margin="2">
+              <TextBlock Text="{Binding Metadata.Name}" FontWeight="SemiBold"/>
+              <TextBlock Text="{Binding ModFolderName}" FontSize="11" Opacity="0.7"/>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <ScrollViewer Grid.Column="2">
+        <StackPanel Spacing="6" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="{Binding Selected.Metadata.Name}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding Selected.Metadata.Author, StringFormat='Author: {0}'}" />
+          <TextBlock Text="{Binding Selected.Metadata.Description}" TextWrapping="Wrap" Opacity="0.85"/>
+          <ItemsControl ItemsSource="{Binding Selected.Tp2Variants}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding, StringFormat='tp2: {0}'}" FontSize="12" Opacity="0.7"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{Binding Selected.Metadata.Forum, StringFormat='Forum: {0}'}" FontSize="12" Opacity="0.7" TextWrapping="Wrap"/>
+
+          <!-- Community info from the LCC database -->
+          <Border IsVisible="{Binding HasLcc}" CornerRadius="4" Padding="8" Margin="0,4"
+                  Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding LccMetaLine}" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+                <Button Content="🔗 LCC page" FontSize="11" Padding="6,1"
+                        Command="{Binding OpenUrlCommand}" CommandParameter="{Binding LccPageUrl}"/>
+              </StackPanel>
+              <TextBlock Text="{Binding LccDescription}" TextWrapping="Wrap" FontSize="12" Opacity="0.9"/>
+              <ItemsControl ItemsSource="{Binding LccDescriptionLinks}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:LccNoteRef">
+                    <Button FontSize="11" Padding="6,1" Margin="0,1,4,1"
+                            Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).OpenUrlCommand}"
+                            CommandParameter="{Binding Url}">
+                      <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <ItemsControl ItemsSource="{Binding LccNotes}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:LccNoteItem">
+                    <StackPanel Margin="0,1">
+                      <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="DarkOrange">
+                        <Run Text="⚠ "/><Run Text="{Binding Text}"/>
+                      </TextBlock>
+                      <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="svc:LccNoteRef">
+                            <Button FontSize="11" Padding="6,1" Margin="0,1,4,1"
+                                    Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).OpenUrlCommand}"
+                                    CommandParameter="{Binding Url}">
+                              <TextBlock><Run Text="🔗 "/><Run Text="{Binding Name}"/></TextBlock>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <!-- mod ↔ build membership (only game-compatible builds are listed) -->
+          <Separator/>
+          <TextBlock Text="In builds:" FontWeight="Bold" FontSize="12"/>
+          <TextBlock Text="Tick a build to add this mod to it (component 0 — adjust on the Builds tab); untick to remove it. Only builds for compatible games are listed."
+                     FontSize="11" Opacity="0.7" TextWrapping="Wrap"/>
+          <ItemsControl ItemsSource="{Binding BuildMemberships}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:BuildMembershipItem">
+                <CheckBox IsChecked="{Binding IsChecked}" Margin="0,1">
+                  <TextBlock Text="{Binding Display}" FontSize="12"/>
+                </CheckBox>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Selected.Metadata.Games}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                        CornerRadius="8" Padding="6,2" Margin="2">
+                  <TextBlock Text="{Binding}" FontSize="11"/>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

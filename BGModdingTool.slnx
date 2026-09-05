@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BGModdingTool.App/BGModdingTool.App.csproj" />
+    <Project Path="src/BGModdingTool.Cli/BGModdingTool.Cli.csproj" />
+    <Project Path="src/BGModdingTool.Core/BGModdingTool.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BGModdingTool.Core.Tests/BGModdingTool.Core.Tests.csproj" />
+  </Folder>
+</Solution>
